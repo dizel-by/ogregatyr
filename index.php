@@ -1,7 +1,7 @@
 <?php
 
 /***************************************************************************
- *   Copyright (C) 2009-2012 by http://dizel-by.livejournal.com            *
+ *   Copyright (C) 2009-2015 by http://dizel-by.livejournal.com            *
  *   http://dizel-by.livejournal.com/47660.html                            *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -21,6 +21,8 @@
  ***************************************************************************/
 
 $versions = array(
+	"2014-12-04" => "Добавлена почта Нидерландов",
+	"2013-05-27" => "Переезд на новый домен",
 	"2012-08-15" => "Добавлена почта Словакии, багфиксы (thanks to Andrew Shadura), отключена почта Китая",
 	"2012-06-30" => "Трекинг посылок из Сингапура через 4PX",
 	"2012-05-21" => "добавлены почта Сингапура и USPS",
@@ -45,7 +47,7 @@ set_time_limit(0);
 
 function showUpdates($url) {
 	global $versions;
-	echo @file_get_contents("http://dizel.homeip.net/post/index.php?version=".max(array_keys($versions)));
+	echo @file_get_contents("http://eth0.by/post/index.php?version=".max(array_keys($versions)));
 }
 
 function compareDates($a1, $a2) {
@@ -62,7 +64,7 @@ function file_post_contents($url, $data, $headers = "") {
 	$context_options = array(
 		"http" => array(
 			"method" => "POST",
-			"timeout" => 10,
+			"timeout" => 20,
 			"header" => "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: ". strlen($data). "\r\n" . $headers,
 			"content" => $data
 			)
@@ -217,14 +219,14 @@ function getHK_post($id) {
 
 		if (!preg_match('~<!-- #BeginParcelDetail -->\s*<tr>\s*<td><a href="[^\"]+">[^<]+</a></td>\s*<td>(.+)</td>\s*<td>(.+)</td>~Umsi', $html, $o))
 			return $data;
-	
+
 		list(,$src,$dst) = $o;
 
 		$html = file_get_contents("http://app3.hongkongpost.com/CGI/mt/e_detail.jsp?mail_type=parcel_ouw&tracknbr={$id}&localno={$id}");
 
 		if (!preg_match_all("~<table class=\"detail\">.+</table>~Umsi", $html, $o))
 			return $data;
-	
+
 		$html = $o[0][1];
 
 		preg_match_all("~<td>(.*)</td>~Umsi", $html, $o);
@@ -232,7 +234,7 @@ function getHK_post($id) {
 		for($i = 0; $i < count($o[1]); $i+=3) {
 			$date = date('Y-m-d H:i', strtotime($o[1][$i]));
 			$action = $o[1][$i+2];
-	  
+
 			$data[] = array(
 				"date" => $date,
 				"src" => $src,
@@ -241,9 +243,9 @@ function getHK_post($id) {
 				"step" => $i,
 				);
 		}
-	
+
 	}
-  
+
 	return $data;
 
 }
@@ -320,16 +322,16 @@ function getBY_post($id) {
 			}
 
 			if (count($headers[0]) == 2) {
-		
+
 				for ($i = 0; $i < count($tds[1]); $i+=2) {
 					$date = date('Y-m-d H:i', strtotime(preg_replace("~^(\d+)\.(\d+)\.(\d+) (\d+):(\d+):(\d+)$~", "\\3-\\2-\\1 \\4:\\5:\\6", $tds[1][$i])));
 					$action = preg_replace("~^\d{2}\. ~", "", $tds[1][$i+1]);
-		  
+
 					$src = $dst = "";
 					if (preg_match("~из \(.+\) (.+) в \(.+\) (.+)$~", $action, $p)) {
 						$src = $p[1]; $dst = $p[2];
 					}
-		  
+
 					$data[] = array(
 						"date" => $date,
 						"src" => $src,
@@ -338,11 +340,36 @@ function getBY_post($id) {
 						"step" => $step,
 						);
 					$step++;
-		  
+
 				}
 			}
 		}
 	}
+	return $data;
+
+}
+
+function getNL_post($id) {
+	$url = "http://www.postnl.post/details/";
+	$html = file_post_contents($url, array("barcodes" => $id), "Referer: http://www.postnl.post/");
+
+	$data = array();
+	$step = 0;
+
+	if (preg_match_all("~<tr class=\"[^\"]*detail\">(.+)</tr>~Ums", $html, $trs)) {
+		foreach ($trs[0] as $tr) {
+			if (preg_match_all("~<td[^>]*>(.+)</td>~Ums", $tr, $tds)) {
+				$data[] = array(
+					'date' => date('Y-m-d H:i', strtotime(trim($tds[1][0]))),
+					'src' => "Amsterdam",
+					"action" => trim($tds[1][1]),
+					"step" => $step,
+				);
+				$step++;
+			}
+		}
+	}
+
 	return $data;
 
 }
@@ -363,29 +390,30 @@ if ($_GET['version']) {
 			$news .= "<li><b>".date('d.m.Y', strtotime($v))."</b><br/>{$title}</li>";
 	}
 	if ($news)
-		$news = "<h1 style='display: inline'>Доступны обновления</h1> (<a href='http://dizel.homeip.net/post/index.php.txt'>Скачать</a>)<ul>".$news."</ul>";
-  
+		$news = "<h1 style='display: inline'>Доступны обновления</h1> (<a href='http://eth0.by/post/index.php.txt'>Скачать</a>)<ul>".$news."</ul>";
+
 	echo $news;exit;
-	  
+
 }
+
 
 function getSK_post($id) {
 	$url = "http://tandt.posta.sk/en?q=";
 	$html = file_get_contents($url . $id);
-	
+
 	$data = array();
 	$step = 0;
 	preg_match_all("~<ul class=\"result-item\">.+</ul>~Ums", $html, $ul);
 	foreach ($ul[0] as $html) {
-		
+
 		if (preg_match_all("~<li class=\"event\">(.*)</li>~Umsi", $html, $lis)) {
-			
+
 				for ($i = 0; $i < count($lis[1]); $i++) {
 					preg_match("~<span class=\"event-day\">(.*)</span>~Umsi", $lis[0][$i], $date);
 					$date = date('Y-m-d H:i', strtotime(preg_replace("~<.*>~", "", $date[1])));
 					$src = '';
 					$dst = '';
-					
+
 					preg_match("~<span class=\"event-name\">(.*)<span~Umsi", $lis[0][$i], $name);
 					preg_match("~<span class=\"event-note\">(.*)</span~Umsi", $lis[0][$i], $note);
 					$action = $name[1].$note[1];
@@ -414,10 +442,10 @@ if ($_GET['action'] == "part") {
 		$data = array();
 	else {
 		$id = $id[0];
-		
+
 		if (array_search($part, $functions) !== false) {
 			$data = array('id' => $row, "data" => call_user_func($part, $id));
-		} 
+		}
 	}
 
 	echo serialize($data);exit;
@@ -440,7 +468,7 @@ foreach (explode("\n", $_GET['id']) as $k => $row) {
 
 	$data[$row] = array();
 	foreach ($functions as $f) {
-		
+
 		if (!$multi) {
 			$t = time();
 			if ($tmp = call_user_func($f, $id))
@@ -454,25 +482,25 @@ foreach (explode("\n", $_GET['id']) as $k => $row) {
 			curl_setopt($ch[$i], CURLOPT_RETURNTRANSFER, 1);
 			$i++;
 		}
-		
+
 	}
-	
+
 }
 
 if ($multi) {
 
 	$mh = curl_multi_init();
-	
-	foreach ($ch as &$c) 
+
+	foreach ($ch as &$c)
 		curl_multi_add_handle($mh, $c);
-	
+
 	$running=null;
-	
+
 	do {
 		usleep(50);
 		curl_multi_exec($mh, $running);
 	} while ($running > 0);
-	
+
 	foreach ($ch as &$c) {
 		$tmp = unserialize(curl_multi_getcontent($c));
 		$data[$tmp['id']] = array_merge($data[$tmp['id']], $tmp['data']);
@@ -480,7 +508,7 @@ if ($multi) {
 	}
 
 	curl_multi_close($mh);
-	
+
 }
 
 $time = microtime(true)-$time;
@@ -553,9 +581,9 @@ h1 {
 ul {
  padding: 0px;
 }
-    
+
 .updates {
-    float: right; 
+    float: right;
     width: 400px;
     font-size: 11px;
 }
