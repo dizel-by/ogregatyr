@@ -402,6 +402,31 @@ function getSK_post($id) {
 	return $data;
 }
 
+function getDHL_post($id) {
+    $opts = array('http' =>
+      array(
+          'header'  => "User-Agent: Mozilla/5.0 (X11; Linux i686; rv:34.0) Gecko/20100101 Firefox/34.0 Iceweasel/34.0\r\n"
+      )
+    );
+
+    $context  = stream_context_create($opts);
+
+    $url = 'http://www.dhl.sk/shipmentTracking?countryCode=sk&languageCode=en&AWB=';
+    $json = file_get_contents($url . $id, false, $context);
+    $results = json_decode($json, true);
+
+    $i = 0;
+    foreach ($results["results"][0]["checkpoints"] as $checkpoint) {
+        $date = date('Y-m-d H:i', strtotime($checkpoint["date"]." ".$checkpoint["time"]));
+        $data[] = array(
+            "date" => $date,
+            "src" => $checkpoint["location"],
+            "action" => $checkpoint["description"],
+            "step" => $i
+        );
+    }
+    return $data;
+}
 
 $functions = getFunctions();
 $ch = array();
